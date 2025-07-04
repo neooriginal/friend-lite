@@ -1,0 +1,117 @@
+name: Build and Release APK/IPA
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 🏗 Setup repo
+      uses: actions/checkout@v4
+
+    - name: 🏗 Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18.x
+        cache: npm
+
+    - name: ✅ Check EXPO_TOKEN
+      run: |
+        if [ -z "${{ secrets.EXPO_TOKEN }}" ]; then
+          echo "❌ ERROR: EXPO_TOKEN secret is not set!"
+          echo ""
+          echo "🔧 To fix this:"
+          echo "1. Go to https://expo.dev and create a free account"
+          echo "2. Generate an access token at: https://expo.dev/accounts/[username]/settings/access-tokens"
+          echo "3. Add it as a GitHub secret named 'EXPO_TOKEN'"
+          echo "4. Go to: Settings → Secrets and variables → Actions → New repository secret"
+          echo ""
+          echo "📖 See setup guide for detailed instructions."
+          exit 1
+        else
+          echo "✅ EXPO_TOKEN is configured"
+        fi
+
+    - name: 🏗 Setup EAS
+      uses: expo/expo-github-action@v8
+      with:
+        eas-version: latest
+        token: ${{ secrets.EXPO_TOKEN }}
+
+    - name: 📦 Install dependencies
+      working-directory: ./friend-lite
+      run: npm ci
+
+    - name: 🚀 Build Android APK (Development)
+      working-directory: ./friend-lite
+      run: |
+        BUILD_ID=$(eas build --platform android --profile development --non-interactive --json | jq -r '.[] | select(.platform=="ANDROID") | .id')
+        echo "ANDROID_BUILD_ID=$BUILD_ID" >> $GITHUB_ENV
+
+    - name: 🚀 Build iOS IPA (Development) 
+      working-directory: ./friend-lite
+      run: |
+        BUILD_ID=$(eas build --platform ios --profile development --non-interactive --json | jq -r '.[] | select(.platform=="IOS") | .id')
+        echo "IOS_BUILD_ID=$BUILD_ID" >> $GITHUB_ENV
+
+    - name: ⏳ Wait for builds to complete
+      working-directory: ./friend-lite
+      run: |
+        echo "Waiting for Android build..."
+        eas build:view $ANDROID_BUILD_ID --json | jq -r '.status'
+        while [ "$(eas build:view $ANDROID_BUILD_ID --json | jq -r '.status')" = "IN_PROGRESS" ] || [ "$(eas build:view $ANDROID_BUILD_ID --json | jq -r '.status')" = "IN_QUEUE" ]; do
+          echo "Android build still in progress..."
+          sleep 30
+        done
+        
+        echo "Waiting for iOS build..."
+        while [ "$(eas build:view $IOS_BUILD_ID --json | jq -r '.status')" = "IN_PROGRESS" ] || [ "$(eas build:view $IOS_BUILD_ID --json | jq -r '.status')" = "IN_QUEUE" ]; do
+          echo "iOS build still in progress..."
+          sleep 30
+        done
+
+    - name: 📱 Download builds
+      working-directory: ./friend-lite
+      run: |
+        mkdir -p build
+        
+        # Download Android APK
+        ANDROID_URL=$(eas build:view $ANDROID_BUILD_ID --json | jq -r '.artifacts.buildUrl // empty')
+        if [ ! -z "$ANDROID_URL" ]; then
+          curl -L -o build/app-dev.apk "$ANDROID_URL"
+          echo "Downloaded Android APK"
+        fi
+        
+        # Download iOS IPA  
+        IOS_URL=$(eas build:view $IOS_BUILD_ID --json | jq -r '.artifacts.buildUrl // empty')
+        if [ ! -z "$IOS_URL" ]; then
+          curl -L -o build/app-dev.ipa "$IOS_URL"
+          echo "Downloaded iOS IPA"
+        fi
+
+    - name: 📱 Create Release
+      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: build-${{ github.run_number }}
+        name: "Build #${{ github.run_number }}"
+        body: |
+          🚀 Automated build from commit ${{ github.sha }}
+          
+          📱 **Downloads:**
+          - **Android APK**: `app-dev.apk` - Install directly on Android devices
+          - **iOS IPA**: `app-dev.ipa` - For development/testing (requires developer account to install)
+          
+          💡 These are development builds - no signing required!
+        files: |
+          friend-lite/build/app-dev.apk
+          friend-lite/build/app-dev.ipa
+        draft: false
+        prerelease: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
