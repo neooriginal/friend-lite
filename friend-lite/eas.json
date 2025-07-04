@@ -16,9 +16,10 @@
     },
     "local": {
       "distribution": "internal",
+      "withoutCredentials": true,
       "android": {
         "buildType": "apk",
-        "gradleCommand": ":app:assembleRelease"
+        "gradleCommand": ":app:assembleDebug"
       },
       "ios": {
         "simulator": true
