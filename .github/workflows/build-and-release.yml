@@ -90,23 +90,9 @@ jobs:
     - name: 🚀 Build Android APK (Development)
       working-directory: ./friend-lite
       run: |
-        echo "Starting Android build..."
-        echo "Current directory: $(pwd)"
-        echo "Files in directory:"
-        ls -la
-        
-        echo "Checking eas.json..."
-        cat eas.json
-        
-        echo "Running eas build command..."
-        set +e  # Don't exit on error immediately
+        echo "🤖 Starting Android build..."
         BUILD_OUTPUT=$(eas build --platform android --profile development --non-interactive --json 2>&1)
         BUILD_EXIT_CODE=$?
-        set -e  # Re-enable exit on error
-        
-        echo "Build command exit code: $BUILD_EXIT_CODE"
-        echo "Build command output:"
-        echo "$BUILD_OUTPUT"
         
         if [ $BUILD_EXIT_CODE -eq 0 ]; then
           BUILD_ID=$(echo "$BUILD_OUTPUT" | jq -r '.[] | select(.platform=="ANDROID") | .id // empty')
@@ -114,14 +100,12 @@ jobs:
             echo "ANDROID_BUILD_ID=$BUILD_ID" >> $GITHUB_ENV
             echo "✅ Android build started: $BUILD_ID"
           else
-            echo "❌ Could not extract Android build ID from output"
-            echo "Trying alternative JSON parsing..."
-            echo "$BUILD_OUTPUT" | jq '.'
+            echo "❌ Could not extract Android build ID"
+            echo "$BUILD_OUTPUT"
             exit 1
           fi
         else
-          echo "❌ Android build command failed with exit code: $BUILD_EXIT_CODE"
-          echo "Full error output:"
+          echo "❌ Android build failed:"
           echo "$BUILD_OUTPUT"
           exit 1
         fi
@@ -129,15 +113,18 @@ jobs:
     - name: 🚀 Build iOS IPA (Development) 
       working-directory: ./friend-lite
       run: |
-        echo "Starting iOS build..."
+        echo "🍎 Starting iOS build..."
         BUILD_OUTPUT=$(eas build --platform ios --profile development --non-interactive --json 2>&1)
-        if [ $? -eq 0 ]; then
+        BUILD_EXIT_CODE=$?
+        
+        if [ $BUILD_EXIT_CODE -eq 0 ]; then
           BUILD_ID=$(echo "$BUILD_OUTPUT" | jq -r '.[] | select(.platform=="IOS") | .id // empty')
           if [ ! -z "$BUILD_ID" ]; then
             echo "IOS_BUILD_ID=$BUILD_ID" >> $GITHUB_ENV
             echo "✅ iOS build started: $BUILD_ID"
           else
             echo "❌ Could not extract iOS build ID"
+            echo "$BUILD_OUTPUT"
             exit 1
           fi
         else
