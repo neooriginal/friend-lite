@@ -48,22 +48,80 @@ jobs:
       working-directory: ./friend-lite
       run: npm ci
 
+    - name: 🔍 Validate project setup
+      working-directory: ./friend-lite
+      run: |
+        echo "Validating Expo/EAS project setup..."
+        
+        # Check required files
+        echo "Checking required files:"
+        for file in "package.json" "app.json" "eas.json"; do
+          if [ -f "$file" ]; then
+            echo "✅ $file exists"
+          else
+            echo "❌ $file is missing"
+            exit 1
+          fi
+        done
+        
+        # Validate package.json
+        echo "Checking package.json for Expo..."
+        if grep -q '"expo"' package.json; then
+          echo "✅ Expo dependency found"
+        else
+          echo "❌ Expo dependency not found in package.json"
+        fi
+        
+        # Validate app.json structure
+        echo "Validating app.json structure..."
+        if jq -e '.expo.name' app.json > /dev/null; then
+          echo "✅ app.json has valid Expo configuration"
+          echo "App name: $(jq -r '.expo.name' app.json)"
+          echo "App slug: $(jq -r '.expo.slug' app.json)"
+        else
+          echo "❌ app.json missing valid Expo configuration"
+          exit 1
+        fi
+        
+        # Check EAS CLI authentication
+        echo "Testing EAS authentication..."
+        eas whoami
+
     - name: 🚀 Build Android APK (Development)
       working-directory: ./friend-lite
       run: |
         echo "Starting Android build..."
+        echo "Current directory: $(pwd)"
+        echo "Files in directory:"
+        ls -la
+        
+        echo "Checking eas.json..."
+        cat eas.json
+        
+        echo "Running eas build command..."
+        set +e  # Don't exit on error immediately
         BUILD_OUTPUT=$(eas build --platform android --profile development --non-interactive --json 2>&1)
-        if [ $? -eq 0 ]; then
+        BUILD_EXIT_CODE=$?
+        set -e  # Re-enable exit on error
+        
+        echo "Build command exit code: $BUILD_EXIT_CODE"
+        echo "Build command output:"
+        echo "$BUILD_OUTPUT"
+        
+        if [ $BUILD_EXIT_CODE -eq 0 ]; then
           BUILD_ID=$(echo "$BUILD_OUTPUT" | jq -r '.[] | select(.platform=="ANDROID") | .id // empty')
           if [ ! -z "$BUILD_ID" ]; then
             echo "ANDROID_BUILD_ID=$BUILD_ID" >> $GITHUB_ENV
             echo "✅ Android build started: $BUILD_ID"
           else
-            echo "❌ Could not extract Android build ID"
+            echo "❌ Could not extract Android build ID from output"
+            echo "Trying alternative JSON parsing..."
+            echo "$BUILD_OUTPUT" | jq '.'
             exit 1
           fi
         else
-          echo "❌ Android build failed:"
+          echo "❌ Android build command failed with exit code: $BUILD_EXIT_CODE"
+          echo "Full error output:"
           echo "$BUILD_OUTPUT"
           exit 1
         fi
@@ -91,56 +149,110 @@ jobs:
     - name: ⏳ Wait for builds to complete
       working-directory: ./friend-lite
       run: |
-        echo "Waiting for Android build..."
-        eas build:view $ANDROID_BUILD_ID --json | jq -r '.status'
-        while [ "$(eas build:view $ANDROID_BUILD_ID --json | jq -r '.status')" = "IN_PROGRESS" ] || [ "$(eas build:view $ANDROID_BUILD_ID --json | jq -r '.status')" = "IN_QUEUE" ]; do
-          echo "Android build still in progress..."
-          sleep 30
-        done
+        # Wait for Android build if it started
+        if [ ! -z "$ANDROID_BUILD_ID" ]; then
+          echo "Waiting for Android build ($ANDROID_BUILD_ID)..."
+          STATUS=$(eas build:view $ANDROID_BUILD_ID --json 2>/dev/null | jq -r '.status // "UNKNOWN"')
+          echo "Initial Android status: $STATUS"
+          
+          while [ "$STATUS" = "IN_PROGRESS" ] || [ "$STATUS" = "IN_QUEUE" ]; do
+            echo "Android build still $STATUS..."
+            sleep 30
+            STATUS=$(eas build:view $ANDROID_BUILD_ID --json 2>/dev/null | jq -r '.status // "UNKNOWN"')
+          done
+          echo "✅ Android build finished with status: $STATUS"
+        fi
         
-        echo "Waiting for iOS build..."
-        while [ "$(eas build:view $IOS_BUILD_ID --json | jq -r '.status')" = "IN_PROGRESS" ] || [ "$(eas build:view $IOS_BUILD_ID --json | jq -r '.status')" = "IN_QUEUE" ]; do
-          echo "iOS build still in progress..."
-          sleep 30
-        done
+        # Wait for iOS build if it started  
+        if [ ! -z "$IOS_BUILD_ID" ]; then
+          echo "Waiting for iOS build ($IOS_BUILD_ID)..."
+          STATUS=$(eas build:view $IOS_BUILD_ID --json 2>/dev/null | jq -r '.status // "UNKNOWN"')
+          echo "Initial iOS status: $STATUS"
+          
+          while [ "$STATUS" = "IN_PROGRESS" ] || [ "$STATUS" = "IN_QUEUE" ]; do
+            echo "iOS build still $STATUS..."
+            sleep 30
+            STATUS=$(eas build:view $IOS_BUILD_ID --json 2>/dev/null | jq -r '.status // "UNKNOWN"')
+          done
+          echo "✅ iOS build finished with status: $STATUS"
+        fi
 
     - name: 📱 Download builds
       working-directory: ./friend-lite
       run: |
         mkdir -p build
+        DOWNLOAD_SUCCESS=false
         
-        # Download Android APK
-        ANDROID_URL=$(eas build:view $ANDROID_BUILD_ID --json | jq -r '.artifacts.buildUrl // empty')
-        if [ ! -z "$ANDROID_URL" ]; then
-          curl -L -o build/app-dev.apk "$ANDROID_URL"
-          echo "Downloaded Android APK"
+        # Download Android APK if build succeeded
+        if [ ! -z "$ANDROID_BUILD_ID" ]; then
+          echo "Checking Android build..."
+          ANDROID_STATUS=$(eas build:view $ANDROID_BUILD_ID --json 2>/dev/null | jq -r '.status // "UNKNOWN"')
+          if [ "$ANDROID_STATUS" = "FINISHED" ]; then
+            ANDROID_URL=$(eas build:view $ANDROID_BUILD_ID --json 2>/dev/null | jq -r '.artifacts.buildUrl // empty')
+            if [ ! -z "$ANDROID_URL" ]; then
+              echo "📱 Downloading Android APK..."
+              curl -L -o build/app-dev.apk "$ANDROID_URL"
+              echo "✅ Downloaded Android APK"
+              DOWNLOAD_SUCCESS=true
+            else
+              echo "⚠️ Android build finished but no download URL found"
+            fi
+          else
+            echo "❌ Android build failed with status: $ANDROID_STATUS"
+          fi
         fi
         
-        # Download iOS IPA  
-        IOS_URL=$(eas build:view $IOS_BUILD_ID --json | jq -r '.artifacts.buildUrl // empty')
-        if [ ! -z "$IOS_URL" ]; then
-          curl -L -o build/app-dev.ipa "$IOS_URL"
-          echo "Downloaded iOS IPA"
+        # Download iOS IPA if build succeeded
+        if [ ! -z "$IOS_BUILD_ID" ]; then
+          echo "Checking iOS build..."
+          IOS_STATUS=$(eas build:view $IOS_BUILD_ID --json 2>/dev/null | jq -r '.status // "UNKNOWN"')
+          if [ "$IOS_STATUS" = "FINISHED" ]; then
+            IOS_URL=$(eas build:view $IOS_BUILD_ID --json 2>/dev/null | jq -r '.artifacts.buildUrl // empty')
+            if [ ! -z "$IOS_URL" ]; then
+              echo "📱 Downloading iOS IPA..."
+              curl -L -o build/app-dev.ipa "$IOS_URL"
+              echo "✅ Downloaded iOS IPA"
+              DOWNLOAD_SUCCESS=true
+            else
+              echo "⚠️ iOS build finished but no download URL found"
+            fi
+          else
+            echo "❌ iOS build failed with status: $IOS_STATUS"
+          fi
+        fi
+        
+        # Ensure at least one build succeeded
+        if [ "$DOWNLOAD_SUCCESS" = "false" ]; then
+          echo "❌ No builds succeeded - cannot create release"
+          exit 1
         fi
 
     - name: 📱 Create Release
       if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: build-${{ github.run_number }}
-        name: "Build #${{ github.run_number }}"
-        body: |
-          🚀 Automated build from commit ${{ github.sha }}
-          
-          📱 **Downloads:**
-          - **Android APK**: `app-dev.apk` - Install directly on Android devices
-          - **iOS IPA**: `app-dev.ipa` - For development/testing (requires developer account to install)
-          
-          💡 These are development builds - no signing required!
-        files: |
-          friend-lite/build/app-dev.apk
-          friend-lite/build/app-dev.ipa
-        draft: false
-        prerelease: true
+      working-directory: ./friend-lite
+      run: |
+        # Prepare release files and body
+        FILES=""
+        BODY="🚀 Automated build from commit ${{ github.sha }}\n\n📱 **Downloads:**\n"
+        
+        if [ -f "build/app-dev.apk" ]; then
+          FILES="$FILES friend-lite/build/app-dev.apk"
+          BODY="$BODY- **Android APK**: \`app-dev.apk\` - Install directly on Android devices\n"
+        fi
+        
+        if [ -f "build/app-dev.ipa" ]; then
+          FILES="$FILES friend-lite/build/app-dev.ipa"
+          BODY="$BODY- **iOS IPA**: \`app-dev.ipa\` - For development/testing (requires developer account to install)\n"
+        fi
+        
+        BODY="$BODY\n💡 These are development builds - no signing required!"
+        
+        # Create release using GitHub CLI
+        echo "$BODY" > release_body.txt
+        gh release create "build-${{ github.run_number }}" \
+          --title "Build #${{ github.run_number }}" \
+          --notes-file release_body.txt \
+          --prerelease \
+          $FILES
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
