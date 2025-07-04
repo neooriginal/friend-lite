@@ -45,7 +45,7 @@ jobs:
         run: npm ci
 
       - name: Initialize EAS
-        run: eas init --non-interactive
+        run: eas init --force --non-interactive
 
       - name: Build Android APK
         run: eas build --platform android --profile preview --local --output ${{ github.workspace }}/app-release.apk --non-interactive

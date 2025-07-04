@@ -55,7 +55,7 @@ jobs:
         run: npm ci
 
       - name: Initialize EAS
-        run: eas init --non-interactive
+        run: eas init --force --non-interactive
 
       - name: Build Android APK
         run: eas build --platform android --profile preview --local --output ${{ github.workspace }}/friend-lite-android.apk --non-interactive
@@ -96,7 +96,7 @@ jobs:
         run: npm ci
 
       - name: Initialize EAS
-        run: eas init --non-interactive
+        run: eas init --force --non-interactive
 
       - name: Build iOS IPA
         run: eas build --platform ios --local --non-interactive --output ${{ github.workspace }}/friend-lite-ios.ipa
