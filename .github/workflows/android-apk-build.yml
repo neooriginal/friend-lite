@@ -48,7 +48,7 @@ jobs:
         run: eas init --force --non-interactive
 
       - name: Build Android APK
-        run: eas build --platform android --profile preview --local --output ${{ github.workspace }}/app-release.apk --non-interactive
+        run: eas build --platform android --profile local --local --output ${{ github.workspace }}/app-release.apk --non-interactive
                             
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
