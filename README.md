@@ -1,217 +1,210 @@
 # Own your Friend DevKit, DevKit 2, OMI
 
-## Overview
-This repository provides everything needed to build your own audio-first AI system using OMI/Friend devices. Choose from multiple backend options based on your needs, from simple audio processing to full AI-powered conversation management.
+# Intro
+The idea of this repo is to provide just enough to be useful for developers.
+It should provide the minimal requirements to either:
+1. Provide firmware, sdks, examples to make your own software
+2. Advanced solution or tutorial for one such that you can get full use of your devices.
 
-**Core Components:**
-- 📱 **Mobile App** - React Native app for Bluetooth streaming
-- 🖥️ **Backends** - Multiple backend options for different use cases  
-- 🔧 **Services** - Additional ASR and speaker recognition services
+Instead of going the way of making OMI's ecosystem compatible and more open -
+This will attempt to make it easy to roll your own - and then try to make it compatible with OMI's ecosystem.
 
-## Architecture
+The app uses react native sdk (A fork of it, since the original wasn't updated fast enough)
+The backend uses the python sdk (A fork of it, since the original isn't pushed to pypi)
+
+# Vision
+This fits as a small part of the larger idea of
+"Have various sensors feeding the state of YOUR world to computers/AI and get some use out of it"
+
+Usecases are numerous - OMI Mentor is one of them
+Friend/Omi/pendants are a small but important part of this, since they record personal spoken context the best.
+OMI-like devices with a camera can also capture visual context - or smart glasses - which also double as a display.
+
+Regardless - this repo will try to do the minimal of this - multiple OMI-like audio devices feeding audio data - and from it,
+- Memories
+- Action items
+- Home automation
+
+# Arch
 ![Architecture Diagram](.assets/plan.png)
 
-Your OMI device streams audio via Bluetooth (OPUS codec) → Backend processes and transcribes → AI extracts memories/actions → Storage (MongoDB, Qdrant)
+## Arch description
+The current DevKit2 streams audio via Bluetooth to some device in the OPUS codec.
+Once you have audio, you need trascription (you need speech to text AKA STT or automatic speech recognition AKA ASR. Deepgram is an API based service where you stream your audio to them and they give you transcripts. You can host this locally) from it and then any other things you want, such as -
+Conversation summarization (typically done via LLMs, so ollama or call OpenAI)
+You also need to store these things somewhere - and you need to store different things -
+1. Transcript
+2. Conversation summary
+3. Maybe the audio itself?
+4. Memories
 
-## Quick Start
+Memories are stored in qdrant
+Conversation, and like, general logging is done on mongodb.
 
-### 1. Choose Your Backend
+Its a little complicated to turn that into PCM, which most Apps use.
 
-#### 🚀 **Advanced Backend** (Recommended)
-**Location:** `backends/advanced-backend/`  
-**Best for:** Production use, full AI features
+# Repository Structure
 
-**Setup:**
-```bash
-cd backends/advanced-backend
-cp .env.template .env
-# Edit .env with your settings
-docker compose up --build -d
-```
+## Core Components
 
-**Services included:**
-- Backend API (port 8000)
-- Web UI (port 8501) 
-- MongoDB (port 27017)
-- Qdrant vector DB (port 6333)
-- Optional: Ollama, Speaker Recognition, Ngrok
+### 📱 Mobile App (`friend-lite/`)
+- **React Native app** for connecting to OMI devices via Bluetooth
+- Streams audio in OPUS format to selected backend
+- Cross-platform (iOS/Android) support
+- Uses React Native Bluetooth SDK
+
+### 🖥️ Backends (`backends/`)
+Choose one based on your needs:
+
+#### **Simple Backend** (`backends/simple-backend/`)
+**Best for:** Getting started, basic audio processing, learning
 
 **Features:**
-- ✅ Memory system with vector storage
-- ✅ Speaker recognition & enrollment  
-- ✅ Action items extraction
-- ✅ Conversation management
-- ✅ Web UI for monitoring
-- ✅ Multiple ASR options (Deepgram + offline)
-- ✅ Audio cropping & optimization
+- ✅ Basic audio ingestion (OPUS → PCM → WAV chunks)
+- ✅ File-based storage (30-second segments)
+- ✅ Minimal dependencies
+- ✅ Quick setup
 
-<details>
-<summary><strong>Advanced Setup Details</strong></summary>
+**Pros:**
+- Easiest to understand and modify
+- Minimal resource requirements
+- No external services needed
+- Good for prototyping
 
-**Required Environment Variables:**
-```bash
-# ASR Configuration (choose one)
-DEEPGRAM_API_KEY=your_key_here           # For Deepgram API
-OFFLINE_ASR_TCP_URI=tcp://192.168.0.110:8765/  # For offline ASR
-
-# AI Configuration  
-OLLAMA_BASE_URL=http://localhost:11434   # For local Ollama
-HF_TOKEN=your_huggingface_token         # For speaker recognition
-
-# Optional Services
-SPEAKER_SERVICE_URL=http://localhost:8001  # If using speaker recognition
-NGROK_AUTHTOKEN=your_ngrok_token          # For public access
-```
-
-**First Time Setup:**
-1. `cd backends/advanced-backend`
-2. `cp .env.template .env` 
-3. Edit `.env` with your configuration
-4. `docker compose up --build -d`
-5. Wait 2-3 minutes for all services to start
-6. Access Web UI at `http://localhost:8501`
-
-**Optional: Enable Speaker Recognition**
-Uncomment the `speaker-recognition` service in `docker-compose.yml` and set `SPEAKER_SERVICE_URL` in `.env`
-
-**Optional: Enable Ollama**  
-Uncomment the `ollama` service in `docker-compose.yml` and ensure `OLLAMA_BASE_URL` points to it
-</details>
+**Cons:**
+- No transcription built-in
+- No memory/conversation management
+- No speaker recognition
+- Manual file management required
 
 ---
 
-#### Other Backend Options
+#### **Advanced Backend** (`backends/advanced-backend/`) ⭐ **RECOMMENDED**
+**Best for:** Production use, full feature set, comprehensive AI features
 
-<details>
-<summary><strong>Simple Backend</strong> - `backends/simple-backend/`</summary>
+**Features:**
+- ✅ Full audio processing pipeline
+- ✅ **Memory system** (mem0 + Qdrant vector storage)
+- ✅ **Speaker recognition & enrollment**
+- ✅ **Action items extraction** from conversations
+- ✅ **Audio cropping** (removes silence, keeps speech)
+- ✅ **Conversation management** with timeouts
+- ✅ **Web UI** for management and monitoring
+- ✅ **Multiple ASR options** (Deepgram API + offline ASR)
+- ✅ **MongoDB** for structured data storage
+- ✅ **RESTful API** for all operations
+- ✅ **Real-time processing** with WebSocket support
 
-**Best for:** Learning, basic audio processing
+**Pros:**
+- Complete AI-powered solution
+- Scalable architecture
+- Rich feature set
+- Web interface included
+- Speaker identification
+- Memory and action item extraction
+- Audio optimization
 
-```bash
-cd backends/simple-backend  
-cp .env.template .env
-docker compose up --build -d
-```
-
-**Services:** Backend API (8000), Ngrok  
-**Features:** Basic OPUS→WAV conversion, file storage  
-**Output:** Audio chunks saved to `./audio_chunks/`
-</details>
-
-<details>
-<summary><strong>OMI Webhook Compatible</strong> - `backends/others/omi-webhook-compatible/`</summary>
-
-**Best for:** Existing OMI users, easy migration
-
-```bash
-cd backends/others/omi-webhook-compatible
-cp .env.template .env  
-# Add NGROK_TOKEN to .env
-docker compose up --build -d
-```
-
-**Setup:** Point OMI app to `<ngrok-url>/webhook/audio_bytes`  
-**Features:** Drop-in OMI replacement, webhook system
-</details>
-
-<details>
-<summary><strong>Example Satellite</strong> - `backends/others/example-satellite/`</summary>
-
-**Best for:** Wyoming protocol, Home Assistant integration
-
-```bash  
-cd backends/others/example-satellite
-docker compose up --build -d
-# Or run directly:
-uv run python main.py --omi-mac <mac> --wake-uri <uri>
-```
-
-**Features:** Wyoming satellite, streams to remote ASR servers  
-**Use case:** Distributed setups, HA integration
-</details>
+**Cons:**
+- More complex setup
+- Requires multiple services (MongoDB, Qdrant, Ollama)
+- Higher resource requirements
+- Steeper learning curve
 
 ---
 
-### 2. Setup Mobile App
+#### **OMI-Webhook-Compatible Backend** (`backends/omi-webhook-compatible/`)
+**Best for:** Existing OMI users, migration from official OMI backend
 
-**Location:** `friend-lite/`
+**Features:**
+- ✅ Compatible with official OMI app webhook system
+- ✅ Drop-in replacement for OMI backend
+- ✅ Audio file storage
+- ✅ ngrok integration for public endpoints
 
-```bash
-cd friend-lite
-npm install
-# For iOS: npx expo run:ios  
-# For Android: npx expo run:android
-```
+**Pros:**
+- Easy migration from official OMI
+- Works with existing OMI mobile app
+- Simple webhook-based architecture
 
-Configure app to point to your backend's IP address and port.
+**Cons:**
+- Limited features compared to advanced backend
+- Depends on ngrok for public access
+- No built-in AI features
 
-### 3. Additional Services (Optional)
+---
 
-<details>
-<summary><strong>ASR Services</strong> - `extras/asr-services/`</summary>
+#### **Example Satellite Backend** (`backends/example-satellite/`)
+**Best for:** Distributed setups, Wyoming protocol integration
 
-Self-hosted transcription options:
+**Features:**
+- ✅ Wyoming protocol satellite
+- ✅ Streams audio to remote Wyoming servers
+- ✅ Bluetooth OMI device discovery
+- ✅ Integration with Home Assistant/Wyoming ecosystem
 
-```bash
-cd extras/asr-services
-# Moonshine (fast):
-docker compose up moonshine --build -d
-# Parakeet (alternative):  
-docker compose up parakeet --build -d
-```
-</details>
+**Pros:**
+- Integrates with existing Wyoming setups
+- Good for distributed architectures
+- Home Assistant compatible
 
-<details>
-<summary><strong>Speaker Recognition</strong> - `extras/speaker-recognition/`</summary>
+**Cons:**
+- Requires separate Wyoming ASR server
+- Limited standalone functionality
 
-Standalone speaker identification:
+### 🔧 Additional Services (`extras/`)
 
-```bash
-cd extras/speaker-recognition
-docker compose up --build -d
-```
-Port: 8001, Features: REST API for speaker operations
-</details>
+#### **ASR Services** (`extras/asr-services/`)
+- **Wyoming-compatible** ASR services
+- **Moonshine** - Fast offline ASR
+- **Parakeet** - Alternative offline ASR
+- Self-hosted transcription options
 
-<details>
-<summary><strong>HAVPE Relay</strong> - `extras/havpe-relay/`</summary>
+#### **Speaker Recognition Service** (`extras/speaker-recognition/`)
+- Standalone speaker identification service
+- Used by advanced backend
+- REST API for speaker operations
 
-Audio relay service:
+#### **HAVPE Relay** (`extras/havpe-relay/`)
+- Audio relay service
+- Protocol bridging capabilities
 
-```bash
-cd extras/havpe-relay  
-docker compose up --build -d
-```
-</details>
+# Wyoming Protocol Compatibility
 
-## Usage Recommendations
+Both backends and ASR services use the **Wyoming protocol** for standardized communication:
+- Consistent audio streaming format
+- Interoperable with Home Assistant
+- Modular ASR service architecture
+- Easy to swap ASR providers
 
-**Beginners:** Start with Simple Backend → understand audio flow → upgrade to Advanced  
-**Production:** Use Advanced Backend with full stack (MongoDB + Qdrant + optional Ollama)  
-**OMI Users:** Use OMI Webhook Compatible for seamless migration  
-**Home Assistant:** Use Example Satellite + ASR Services for Wyoming integration
+# Quick Start Recommendations
 
-## Architecture Details
+## For Beginners
+1. Start with **Simple Backend** to understand the basics
+2. Use **friend-lite mobile app** to connect your OMI device
+3. Examine saved audio chunks in `./audio_chunks/`
 
-**Audio Flow:** OMI Device → Bluetooth → Mobile App → Backend → ASR → AI Processing → Storage  
-**Storage:** MongoDB (conversations), Qdrant (memory vectors), File system (audio)  
-**Protocols:** Wyoming protocol for ASR compatibility, REST APIs for all services
+## For Production Use
+1. Use **Advanced Backend** for full features
+2. Set up the complete stack: MongoDB + Qdrant + Ollama
+3. Access the Web UI for conversation management
+4. Configure speaker enrollment for multi-user scenarios
 
-## Repository Structure
+## For OMI Users
+1. Use **OMI-Webhook-Compatible Backend** for easy migration
+2. Configure ngrok for public webhook access
+3. Point your OMI app to the webhook URL
 
-```
-friend-lite/
-├── friend-lite/          # React Native mobile app
-├── backends/
-│   ├── advanced-backend/     # Full-featured AI backend ⭐  
-│   ├── simple-backend/       # Basic audio processing
-│   └── others/
-│       ├── example-satellite/        # Wyoming satellite
-│       └── omi-webhook-compatible/   # OMI migration
-└── extras/               # Optional services
-    ├── asr-services/         # Offline transcription
-    ├── speaker-recognition/  # Speaker identification  
-    └── havpe-relay/         # Audio relay
-```
+## For Home Assistant Users
+1. Use **Example Satellite Backend** with Wyoming integration
+2. Set up ASR services from `extras/asr-services/`
+3. Configure Home Assistant Wyoming integration
 
-Each directory contains its own `docker-compose.yml` for easy deployment.
+# Getting Started
+
+1. **Clone the repository**
+2. **Choose your backend** based on the recommendations above
+3. **Follow the README** in your chosen backend directory
+4. **Configure the mobile app** to connect to your backend
+5. **Start streaming audio** from your OMI device
+
+Each backend directory contains detailed setup instructions and docker-compose files for easy deployment.
