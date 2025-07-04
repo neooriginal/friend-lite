@@ -3,12 +3,8 @@ name: Android APK Build
 on:
   push:
     branches: [main, develop]
-    paths:
-      - 'friend-lite/**'
   pull_request:
     branches: [main]
-    paths:
-      - 'friend-lite/**'
   workflow_dispatch:
 
 jobs:

@@ -3,8 +3,6 @@ name: Build All Platforms
 on:
   push:
     branches: [main]
-    paths:
-      - 'friend-lite/**'
   workflow_dispatch:
     inputs:
       build_android:
