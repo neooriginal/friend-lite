@@ -1,0 +1,50 @@
+name: iOS IPA Build
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'friend-lite/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'friend-lite/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: ./friend-lite
+    
+    steps:
+      - name: Setup repo
+        uses: actions/checkout@v4
+      
+      - name: Setup node
+        uses: actions/setup-node@v4.0.2
+        with:
+          node-version: 18.x
+          cache: 'npm'
+          cache-dependency-path: ./friend-lite/package-lock.json
+
+      - name: Setup Expo
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build iOS IPA
+        run: eas build --platform ios --local --non-interactive --output ${{ github.workspace }}/app-release.ipa
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: friend-lite-ios-ipa
+          path: ${{ github.workspace }}/app-release.ipa
+          retention-days: 30 

@@ -1,0 +1,105 @@
+name: Build All Platforms
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'friend-lite/**'
+  workflow_dispatch:
+    inputs:
+      build_android:
+        description: 'Build Android APK'
+        required: false
+        default: true
+        type: boolean
+      build_ios:
+        description: 'Build iOS IPA'
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  build-android:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_android }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./friend-lite
+    
+    steps:
+      - name: Setup repo
+        uses: actions/checkout@v4
+      
+      - name: Setup node
+        uses: actions/setup-node@v4.0.2
+        with:
+          node-version: 18.x
+          cache: 'npm'
+          cache-dependency-path: ./friend-lite/package-lock.json
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Expo
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Android APK
+        run: eas build --platform android --profile preview --local --output ${{ github.workspace }}/friend-lite-android.apk --non-interactive
+                            
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: friend-lite-android-apk
+          path: ${{ github.workspace }}/friend-lite-android.apk
+          retention-days: 30
+
+  build-ios:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_ios }}
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: ./friend-lite
+    
+    steps:
+      - name: Setup repo
+        uses: actions/checkout@v4
+      
+      - name: Setup node
+        uses: actions/setup-node@v4.0.2
+        with:
+          node-version: 18.x
+          cache: 'npm'
+          cache-dependency-path: ./friend-lite/package-lock.json
+
+      - name: Setup Expo
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build iOS IPA
+        run: eas build --platform ios --local --non-interactive --output ${{ github.workspace }}/friend-lite-ios.ipa
+
+      - name: Upload iOS IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: friend-lite-ios-ipa
+          path: ${{ github.workspace }}/friend-lite-ios.ipa
+          retention-days: 30 
