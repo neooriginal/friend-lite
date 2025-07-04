@@ -51,14 +51,42 @@ jobs:
     - name: 🚀 Build Android APK (Development)
       working-directory: ./friend-lite
       run: |
-        BUILD_ID=$(eas build --platform android --profile development --non-interactive --json | jq -r '.[] | select(.platform=="ANDROID") | .id')
-        echo "ANDROID_BUILD_ID=$BUILD_ID" >> $GITHUB_ENV
+        echo "Starting Android build..."
+        BUILD_OUTPUT=$(eas build --platform android --profile development --non-interactive --json 2>&1)
+        if [ $? -eq 0 ]; then
+          BUILD_ID=$(echo "$BUILD_OUTPUT" | jq -r '.[] | select(.platform=="ANDROID") | .id // empty')
+          if [ ! -z "$BUILD_ID" ]; then
+            echo "ANDROID_BUILD_ID=$BUILD_ID" >> $GITHUB_ENV
+            echo "✅ Android build started: $BUILD_ID"
+          else
+            echo "❌ Could not extract Android build ID"
+            exit 1
+          fi
+        else
+          echo "❌ Android build failed:"
+          echo "$BUILD_OUTPUT"
+          exit 1
+        fi
 
     - name: 🚀 Build iOS IPA (Development) 
       working-directory: ./friend-lite
       run: |
-        BUILD_ID=$(eas build --platform ios --profile development --non-interactive --json | jq -r '.[] | select(.platform=="IOS") | .id')
-        echo "IOS_BUILD_ID=$BUILD_ID" >> $GITHUB_ENV
+        echo "Starting iOS build..."
+        BUILD_OUTPUT=$(eas build --platform ios --profile development --non-interactive --json 2>&1)
+        if [ $? -eq 0 ]; then
+          BUILD_ID=$(echo "$BUILD_OUTPUT" | jq -r '.[] | select(.platform=="IOS") | .id // empty')
+          if [ ! -z "$BUILD_ID" ]; then
+            echo "IOS_BUILD_ID=$BUILD_ID" >> $GITHUB_ENV
+            echo "✅ iOS build started: $BUILD_ID"
+          else
+            echo "❌ Could not extract iOS build ID"
+            exit 1
+          fi
+        else
+          echo "❌ iOS build failed:"
+          echo "$BUILD_OUTPUT"
+          exit 1
+        fi
 
     - name: ⏳ Wait for builds to complete
       working-directory: ./friend-lite
