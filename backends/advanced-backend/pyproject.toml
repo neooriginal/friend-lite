@@ -1,13 +1,14 @@
 [project]
 name = "advanced-omi-backend"
 version = "0.1.0"
-description = "Add your description here"
+description = "AI-powered wearable ecosystem for audio capture, transcription, and memory extraction"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "easy-audio-interfaces>=0.5.1",
+    "easy-audio-interfaces>=0.7.1",
     "fastapi>=0.115.12",
-    "mem0ai>=0.1.111",
+    "mem0ai>=0.1.114",
+    "langchain_neo4j",
     "motor>=3.7.1",
     "ollama>=0.4.8",
     "omi-sdk>=0.1.5",
@@ -15,24 +16,44 @@ dependencies = [
     "uvicorn>=0.34.2",
     "wyoming>=1.6.1",
     "aiohttp>=3.8.0",
+    "fastapi-users[beanie]>=14.0.1",
+    "PyYAML>=6.0.1",
 ]
 
-[dependency-groups]
+[project.optional-dependencies]
 deepgram = [
     "deepgram-sdk>=4.0.0",
-]
-dev = [
-    "black>=25.1.0",
-    "isort>=6.0.1",
 ]
 webui = [
     "streamlit>=1.45.1",
 ]
-tests = [
-    "pytest>=8.4.1",
-    "pytest-asyncio>=1.0.0",
-]
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
 
 
 [tool.isort]
 profile = "black"
+
+[tool.black]
+line-length = 100
+
+[dependency-groups]
+dev = [
+    "black>=25.1.0",
+    "isort>=6.0.1",
+    "pre-commit>=4.2.0",
+    "pre-commit-uv>=4.1.4",
+]
+test = [
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.0.0",
+]
